@@ -26,12 +26,15 @@ import android.app.Fragment;
 import android.app.FragmentTransaction;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -54,7 +57,7 @@ import org.sufficientlysecure.donations.DonationsFragment;
 import java.util.Arrays;
 import java.util.Calendar;
 
-public class Preferences extends AppCompatActivity {
+public class Preferences extends AppCompatActivity  implements ActivityCompat.OnRequestPermissionsResultCallback  {
     int theme, skinStatusBar;
     String skin, fabSkin;
     int select=0;
@@ -62,7 +65,7 @@ public class Preferences extends AppCompatActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         SharedPreferences Sp = PreferenceManager.getDefaultSharedPreferences(this);
-        fabSkin = PreferenceUtils.getFabColor(Sp.getInt("fab_skin_color_position", 1));
+        fabSkin = PreferenceUtils.getAccentString(Sp);
 
         int th = Integer.parseInt(Sp.getString("theme", "0"));
 
@@ -209,14 +212,14 @@ public class Preferences extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.prefsfrag);
         Toolbar toolbar=(Toolbar)findViewById(R.id.toolbar);
-        skin = PreferenceUtils.getSkinColor(Sp.getInt("skin_color_position", 4));
+        skin = PreferenceUtils.getPrimaryColorString(Sp);
         if (Build.VERSION.SDK_INT>=21) {
             ActivityManager.TaskDescription taskDescription = new ActivityManager.TaskDescription("Amaze", ((BitmapDrawable)getResources().getDrawable(R.mipmap.ic_launcher)).getBitmap(), Color.parseColor(skin));
             ((Activity)this).setTaskDescription(taskDescription);
         }
         skinStatusBar = PreferenceUtils.getStatusColor(skin);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayOptions(ActionBar.DISPLAY_HOME_AS_UP | ActionBar.DISPLAY_SHOW_HOME | ActionBar.DISPLAY_SHOW_TITLE);
+        getSupportActionBar().setDisplayOptions(android.support.v7.app.ActionBar.DISPLAY_HOME_AS_UP| android.support.v7.app.ActionBar.DISPLAY_SHOW_TITLE);
         getSupportActionBar().setBackgroundDrawable(new ColorDrawable(Color.parseColor(skin)));
         int sdk=Build.VERSION.SDK_INT;
 
@@ -282,9 +285,7 @@ public class Preferences extends AppCompatActivity {
         return true;
     }
     private static final String GOOGLE_PUBKEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo9hApxv/pAZAUQshPiQEX2L6ZPoifEUw9fuisAxZFOHpW83mcRbWDmcqdouc1JqHak0/J0tZEBMc4SqSngE+xK3NxS2Mf4uwXPhD40bC1InAKtGNOJllGXKS8RRmk2FDD33ZHrdFUcJuKL6EIXHl1bwFIrd9rvr5VRt1mvXGj+iSdZe1WQpLex/f/s+eEe1B046Z/U6YNoPvP7xFezbZr3F1kRsx4WD5fcrTdptn38BXcwabJ1T/c2fLuGjUCZbycrggqJS47zEJ+SJhJpQUJWabq0sEYAHlyVN0CR0AVTd4/+y4+hFuPaYkhT4u/H5Uvd78u0VQdljzDs4w8mS++QIDAQAB";
-    private static final String[] GOOGLE_CATALOG = new String[]{"ntpsync.donation.1",
-            "ntpsync.donation.2", "ntpsync.donation.3", "ntpsync.donation.5", "ntpsync.donation.8",
-            "ntpsync.donation.13"};
+    private static final String[] GOOGLE_CATALOG = new String[]{"ntpsync.donation","ntpsync.donation.2", "ntpsync.donation.13"};
     public void donate(){
         try {
             getFragmentManager().beginTransaction().remove(p).commit();
@@ -292,7 +293,7 @@ public class Preferences extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        String[] s=new String[]{"1 Euro","2 Euros","3 Euros","5 Euros","8 Euros","13 Euros"};
+        String[] s=new String[]{"Minimal Donation","Medium Donation","High Donation"};
         DonationsFragment donationsFragment = DonationsFragment.newInstance(BuildConfig.DEBUG, true, GOOGLE_PUBKEY, GOOGLE_CATALOG,
                 s, false, null, null,
                 null, false, null, null, false, null);
@@ -332,4 +333,13 @@ public class Preferences extends AppCompatActivity {
                 break;
         }
     }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == 66) {
+                p.invalidateGplus();
+            }
+
+        }
 }

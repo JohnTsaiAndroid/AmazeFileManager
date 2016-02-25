@@ -19,21 +19,19 @@
 
 package com.amaze.filemanager.fragments;
 
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
+import android.support.v7.widget.CardView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -44,22 +42,24 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.amaze.filemanager.ProgressListener;
 import com.amaze.filemanager.R;
+import com.amaze.filemanager.RegisterCallback;
 import com.amaze.filemanager.activities.MainActivity;
 import com.amaze.filemanager.services.CopyService;
 import com.amaze.filemanager.services.ExtractService;
 import com.amaze.filemanager.services.ZipTask;
+import com.amaze.filemanager.ui.icons.IconUtils;
 import com.amaze.filemanager.utils.DataPackage;
 import com.amaze.filemanager.utils.Futils;
-import com.amaze.filemanager.ui.icons.IconUtils;
+
+import org.w3c.dom.Text;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 public class ProcessViewer extends Fragment {
 
     LinearLayout rootView;
-    CopyService mService;
     boolean mBound = false;
     Futils utils = new Futils();
     ArrayList<Integer> CopyIds = new ArrayList<Integer>();
@@ -82,27 +82,57 @@ public class ProcessViewer extends Fragment {
 
         mainActivity = (MainActivity) getActivity();
         if (mainActivity.theme1 == 1)
-            root.setBackgroundResource((R.color.holo_dark_background));
+            root.setBackgroundResource((R.color.cardView_background));
         rootView = (LinearLayout) root.findViewById(R.id.secondbut);
         //((MainActivity)getActivity()).getSupportActionBar().setTitle(utils.getString(getActivity(),R.string.processes));
-        mainActivity.toolbar.setTitle(utils.getString(getActivity(), R.string.processes));
-        mainActivity.tabsSpinner.setVisibility(View.GONE);
+        mainActivity.setActionBarTitle(utils.getString(getActivity(), R.string.processes));
         mainActivity.floatingActionButton.hideMenuButton(true);
         Sp = PreferenceManager.getDefaultSharedPreferences(getActivity());
         icons = new IconUtils(Sp, getActivity());
         mainActivity.supportInvalidateOptionsMenu();
         return root;
     }
-
     private ServiceConnection mConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName className,
                                        IBinder service) {
             // We've bound to LocalService, cast the IBinder and get LocalService instance
-            CopyService.LocalBinder binder = (CopyService.LocalBinder) service;
-            mService = binder.getService();
+            RegisterCallback binder = (RegisterCallback.Stub.asInterface(service));
             mBound = true;
+            try {
+                for(DataPackage dataPackage:binder.getCurrent()){
+                    processResults(dataPackage);
+                }
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+            try {
+                binder.registerCallBack(new ProgressListener.Stub() {
+                    @Override
+                    public void onUpdate(final DataPackage dataPackage) {
+                        mainActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                processResults(dataPackage);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void refresh() {
+                        mainActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                clear();
+                            }
+                        });
+                    }
+                });
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+            /*
             for (int i : mService.hash1.keySet()) {
                 processResults(mService.hash1.get(i));
             }
@@ -116,7 +146,7 @@ public class ProcessViewer extends Fragment {
                 public void refresh() {
                     clear();
                 }
-            });
+            });*/
         }
 
         @Override
@@ -228,8 +258,12 @@ public class ProcessViewer extends Fragment {
                     boolean completed = b.isCompleted();
                     View process = rootView.findViewWithTag("copy" + id);
                     if (completed) {
-                        rootView.removeViewInLayout(process);
-                        CopyIds.remove(CopyIds.indexOf(id1));
+                        try {
+                            rootView.removeViewInLayout(process);
+                            CopyIds.remove(CopyIds.indexOf(id1));
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     } else {
                         String name = b.getName();
                         int p1 = b.getP1();
@@ -247,19 +281,29 @@ public class ProcessViewer extends Fragment {
                         p.setSecondaryProgress(p2);
                     }
                 } else {
-                    android.support.v7.widget.CardView root = (android.support.v7.widget.CardView) getActivity()
+                    CardView root = (android.support.v7.widget.CardView) getActivity()
                             .getLayoutInflater().inflate(R.layout.processrow, null);
                     root.setTag("copy" + id);
+
                     ImageButton cancel = (ImageButton) root.findViewById(R.id.delete_button);
+                    TextView progressText = (TextView) root.findViewById(R.id.progressText);
+
                     Drawable icon = icons.getCopyDrawable();
                     boolean move = b.isMove();
                     if (move) {
                         icon = icons.getCutDrawable();
                     }
-                    if (mainActivity.theme1 == 1)
+                    if (mainActivity.theme1 == 1) {
+
                         cancel.setImageResource(R.drawable.ic_action_cancel);
-                    else
+                        root.setCardBackgroundColor(R.color.cardView_foreground);
+                        root.setCardElevation(0f);
+                        progressText.setTextColor(Color.WHITE);
+                    } else {
+
                         icon.setColorFilter(Color.parseColor("#666666"), PorterDuff.Mode.SRC_ATOP);
+                        progressText.setTextColor(Color.BLACK);
+                    }
 
                     ((ImageView) root.findViewById(R.id.progressImage)).setImageDrawable(icon);
                     cancel.setOnClickListener(new View.OnClickListener() {
@@ -285,7 +329,7 @@ public class ProcessViewer extends Fragment {
                     if (move) {
                         text = utils.getString(getActivity(), R.string.moving) + "\n" + name;
                     }
-                    ((TextView) root.findViewById(R.id.progressText)).setText(text);
+                    progressText.setText(text);
                     ProgressBar p = (ProgressBar) root.findViewById(R.id.progressBar1);
                     p.setProgress(p1);
                     p.setSecondaryProgress(p2);
@@ -322,11 +366,27 @@ public class ProcessViewer extends Fragment {
                     }
                 }
             } else {
-                View root = getActivity().getLayoutInflater().inflate(R.layout.processrow, null);
+                CardView root = (CardView) getActivity().getLayoutInflater().inflate(R.layout.processrow, null);
                 root.setTag("extract" + id);
-                ((ImageView) root.findViewById(R.id.progressImage)).setImageDrawable(getResources().getDrawable(R.drawable.ic_doc_compressed_black));
+
+                ImageView progressImage = ((ImageView) root.findViewById(R.id.progressImage));
                 ImageButton cancel = (ImageButton) root.findViewById(R.id.delete_button);
-                if (mainActivity.theme1 == 1) cancel.setImageResource(R.drawable.ic_action_cancel);
+                TextView progressText = (TextView) root.findViewById(R.id.progressText);
+
+                if (mainActivity.theme1 == 1) {
+
+                    root.setCardBackgroundColor(R.color.cardView_foreground);
+                    root.setCardElevation(0f);
+                    cancel.setImageResource(R.drawable.ic_action_cancel);
+                    progressText.setTextColor(Color.WHITE);
+                    progressImage.setImageResource(R.drawable.ic_doc_compressed);
+                } else {
+
+                    // cancel has default src set for light theme
+                    progressText.setTextColor(Color.BLACK);
+                    progressImage.setImageResource(R.drawable.ic_doc_compressed_black);
+                }
+
                 cancel.setOnClickListener(new View.OnClickListener() {
 
                     public void onClick(View p1) {
@@ -377,11 +437,27 @@ public class ProcessViewer extends Fragment {
                     }
                 }
             } else {
-                View root = getActivity().getLayoutInflater().inflate(R.layout.processrow, null);
+                CardView root = (CardView) getActivity().getLayoutInflater().inflate(R.layout.processrow, null);
                 root.setTag("zip" + id);
-                ((ImageView) root.findViewById(R.id.progressImage)).setImageDrawable(getResources().getDrawable(R.drawable.ic_doc_compressed_black));
+
+                ImageView progressImage = ((ImageView) root.findViewById(R.id.progressImage));
                 ImageButton cancel = (ImageButton) root.findViewById(R.id.delete_button);
-                if (mainActivity.theme1 == 1) cancel.setImageResource(R.drawable.ic_action_cancel);
+                TextView progressText = (TextView) root.findViewById(R.id.progressText);
+
+                if (mainActivity.theme1 == 1) {
+
+                    root.setCardBackgroundColor(R.color.cardView_foreground);
+                    root.setCardElevation(0f);
+                    cancel.setImageResource(R.drawable.ic_action_cancel);
+                    progressText.setTextColor(Color.WHITE);
+                    progressImage.setImageResource(R.drawable.ic_doc_compressed);
+                } else {
+
+                    // cancel has default src set for light theme
+                    progressText.setTextColor(Color.BLACK);
+                    progressImage.setImageResource(R.drawable.ic_doc_compressed_black);
+                }
+
                 cancel.setOnClickListener(new View.OnClickListener() {
 
                     public void onClick(View p1) {

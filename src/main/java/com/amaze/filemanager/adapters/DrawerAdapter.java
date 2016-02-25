@@ -19,13 +19,9 @@
 
 package com.amaze.filemanager.adapters;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.res.TypedArray;
 import android.graphics.Color;
-import android.graphics.ColorMatrix;
-import android.graphics.ColorMatrixColorFilter;
 import android.graphics.drawable.Drawable;
 import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
@@ -39,10 +35,15 @@ import android.widget.TextView;
 
 import com.amaze.filemanager.R;
 import com.amaze.filemanager.activities.MainActivity;
+import com.amaze.filemanager.filesystem.RootHelper;
 import com.amaze.filemanager.ui.drawer.EntryItem;
 import com.amaze.filemanager.ui.drawer.Item;
 import com.amaze.filemanager.ui.icons.IconUtils;
+import com.amaze.filemanager.utils.DataUtils;
+import com.amaze.filemanager.utils.Futils;
+import com.amaze.filemanager.filesystem.HFile;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -127,16 +128,21 @@ public class DrawerAdapter extends ArrayAdapter<Item> {
             view.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
-
+                    if(!getItem(position).isSection())
                     // not to remove the first bookmark (storage) and permanent bookmarks
-                    if (position > m.storage_count && position < values.size()-5) {
-                        String path = ((EntryItem) getItem(position)).getPath();
-                        if (!getItem(position).isSection() && path.startsWith("smb:/")) {
-                            m.createSmbDialog(path, true, null);
-                            return true;
+                    if (position > m.storage_count && position < values.size()-7) {
+                        EntryItem item=(EntryItem) getItem(position);
+                        String path = (item).getPath();
+                        if(DataUtils.containsBooks(new String[]{item.getTitle(),path})!=-1){
+                            m.renameBookmark((item).getTitle(),path);
                         }
-                        m.renameBookmark(((EntryItem) getItem(position)).getTitle(),path);
-
+                        else if (path.startsWith("smb:/")) {
+                            m.showSMBDialog(item.getTitle(),path, true);
+                        }
+                    }else if(position<m.storage_count ){
+                        String path = ((EntryItem) getItem(position)).getPath();
+                        if(!path.equals("/"))
+                            new Futils().showProps(RootHelper.generateBaseFile(new File(path),true),m,m.theme1);
                     }
 
                     // return true to denote no further processing
